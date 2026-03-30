@@ -285,9 +285,42 @@
 
     const imageData = state.images[state.selectedSlot];
     if (imageData) {
+      // 计算槽位尺寸
+      const slot = state.currentTemplate.slots[state.selectedSlot];
+      const outputWidth = parseInt(elements.widthInput.value) || state.outputWidth;
+      const outputHeight = parseInt(elements.heightInput.value) || state.outputHeight;
+      const borderWidth = 8;
+      const slotWidth = slot.w * outputWidth - borderWidth * 2;
+      const slotHeight = slot.h * outputHeight - borderWidth * 2;
+
+      // 计算图片在当前 scale 下的尺寸
+      const imgRatio = imageData.img.width / imageData.img.height;
+      let drawWidth, drawHeight;
+      if (imgRatio > slotWidth / slotHeight) {
+        drawHeight = slotHeight;
+        drawWidth = slotHeight * imgRatio;
+      } else {
+        drawWidth = slotWidth;
+        drawHeight = slotWidth / imgRatio;
+      }
+      drawWidth *= imageData.scale;
+      drawHeight *= imageData.scale;
+
+      // 计算偏移边界
+      const maxOffsetX = Math.max(0, (drawWidth - slotWidth) / 2);
+      const maxOffsetY = Math.max(0, (drawHeight - slotHeight) / 2);
+
+      // 应用偏移并限制边界
+      let newOffsetX = state.imageStartOffset.x + dx;
+      let newOffsetY = state.imageStartOffset.y + dy;
+
+      // 限制在边界内
+      newOffsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, newOffsetX));
+      newOffsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, newOffsetY));
+
       imageData.offset = {
-        x: state.imageStartOffset.x + dx,
-        y: state.imageStartOffset.y + dy
+        x: newOffsetX,
+        y: newOffsetY
       };
       renderPuzzleCanvas();
     }
@@ -313,34 +346,18 @@
     if (slotIndex !== null && state.images[slotIndex]) {
       const imageData = state.images[slotIndex];
       const delta = e.deltaY > 0 ? 0.95 : 1.05;
+      const newScale = imageData.scale * delta;
 
-      // 计算当前槽位的尺寸（减去边框宽度，与 renderPuzzle 保持一致）
       const slot = state.currentTemplate.slots[slotIndex];
       const outputWidth = parseInt(elements.widthInput.value) || state.outputWidth;
       const outputHeight = parseInt(elements.heightInput.value) || state.outputHeight;
-      const borderWidth = 8;
-      const slotWidth = slot.w * outputWidth - borderWidth * 2;
-      const slotHeight = slot.h * outputHeight - borderWidth * 2;
 
-      // 计算最小缩放比例（刚好填满槽位）
-      const minScale = getMinScale(imageData.img, slotWidth, slotHeight);
+      // 使用公共方法处理缩放
+      const triggeredAnimation = applyScaleChange(imageData, newScale, slot, outputWidth, outputHeight);
 
-      // 限制缩放范围：最小为刚好填满，最大为3倍
-      const newScale = imageData.scale * delta;
-      if (delta < 1) {
-        // 缩小操作，不能小于 minScale
-        const constrainedScale = Math.max(minScale, newScale);
-        // 如果缩小到最小 scale，重置偏移量为 0（居中）
-        if (constrainedScale <= minScale) {
-          imageData.offset = { x: 0, y: 0 };
-        }
-        imageData.scale = constrainedScale;
-      } else {
-        // 放大操作
-        imageData.scale = Math.min(3, newScale);
+      if (!triggeredAnimation) {
+        renderPuzzleCanvas();
       }
-
-      renderPuzzleCanvas();
       updateSlotInfo(slotIndex);
     }
   }
@@ -376,14 +393,13 @@
         const slot = state.currentTemplate.slots[state.selectedSlot];
         const outputWidth = parseInt(elements.widthInput.value) || state.outputWidth;
         const outputHeight = parseInt(elements.heightInput.value) || state.outputHeight;
-        const borderWidth = 8;
-        const slotWidth = slot.w * outputWidth - borderWidth * 2;
-        const slotHeight = slot.h * outputHeight - borderWidth * 2;
-        const minScale = getMinScale(imageData.img, slotWidth, slotHeight);
 
-        // 限制缩放范围
-        imageData.scale = Math.max(minScale, Math.min(3, scale));
-        renderPuzzleCanvas();
+        // 使用公共方法处理缩放
+        const triggeredAnimation = applyScaleChange(imageData, scale, slot, outputWidth, outputHeight);
+
+        if (!triggeredAnimation) {
+          renderPuzzleCanvas();
+        }
         updateSlotInfo(state.selectedSlot);
       }
     }
@@ -397,6 +413,58 @@
     const dx = touches[0].clientX - touches[1].clientX;
     const dy = touches[0].clientY - touches[1].clientY;
     return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // 公共方法：应用缩放变化
+  function applyScaleChange(imageData, newScale, slot, outputWidth, outputHeight) {
+    const borderWidth = 8;
+    const slotWidth = slot.w * outputWidth - borderWidth * 2;
+    const slotHeight = slot.h * outputHeight - borderWidth * 2;
+    const minScale = getMinScale(imageData.img, slotWidth, slotHeight);
+
+    const wasScalingDown = newScale < imageData.scale;
+    const constrainedScale = Math.max(minScale, Math.min(3, newScale));
+    // 计算缩放差值，差值小（比如 < 0.3）可能是误触，归零
+    const scaleDelta = imageData.scale - constrainedScale;
+    const shouldResetOffset = wasScalingDown && scaleDelta < 0.3 && (imageData.offset.x !== 0 || imageData.offset.y !== 0);
+    imageData.scale = constrainedScale;
+
+    // 当缩小差值小且有偏移时动画归零
+    if (shouldResetOffset) {
+      animateOffsetToZero(imageData);
+      return true; // 表示触发了动画
+    }
+    return false; // 表示没有触发动画
+  }
+
+  // 动画：将偏移量平滑过渡到 0
+  function animateOffsetToZero(imageData) {
+    const startX = imageData.offset.x;
+    const startY = imageData.offset.y;
+    const duration = 150; // 动画时长 ms
+    const startTime = performance.now();
+
+    function animate(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // 使用 ease-out 缓动函数
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+
+      imageData.offset.x = startX * (1 - easeOut);
+      imageData.offset.y = startY * (1 - easeOut);
+
+      if (progress < 1) {
+        renderPuzzleCanvas();
+        requestAnimationFrame(animate);
+      } else {
+        imageData.offset.x = 0;
+        imageData.offset.y = 0;
+        renderPuzzleCanvas();
+      }
+    }
+
+    requestAnimationFrame(animate);
   }
 
   function updateSlotInfo(slotIndex) {
