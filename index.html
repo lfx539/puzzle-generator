@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>拼图生成器</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- 头部 -->
+    <header class="app-header">
+      <h1>拼图生成器</h1>
+      <p class="subtitle">选择模板 → 添加图片 → 导出拼图</p>
+    </header>
+
+    <main class="app-main">
+      <!-- 左侧边栏 -->
+      <aside class="sidebar">
+        <!-- 模板选择 -->
+        <section class="panel">
+          <h2 class="panel-title">选择模板</h2>
+          <div id="template-grid" class="template-grid">
+            <!-- 模板卡片将通过 JS 渲染 -->
+          </div>
+        </section>
+
+        <!-- 图片选择 -->
+        <section class="panel">
+          <h2 class="panel-title">添加图片</h2>
+          <input type="file" id="image-input" accept="image/*" multiple>
+          <label for="image-input" class="btn btn-primary">
+            <span>+ 选择图片</span>
+          </label>
+          <div id="image-preview" class="image-preview">
+            <p class="empty-tip">点击上方按钮选择图片</p>
+          </div>
+        </section>
+
+        <!-- 输出设置 -->
+        <section class="panel">
+          <h2 class="panel-title">输出尺寸</h2>
+          <div class="size-inputs">
+            <label>
+              宽度
+              <input type="number" id="output-width" value="1080" min="300" max="4000">
+            </label>
+            <span>×</span>
+            <label>
+              高度
+              <input type="number" id="output-height" value="1440" min="300" max="4000">
+            </label>
+          </div>
+        </section>
+
+        <!-- 操作按钮 -->
+        <section class="panel">
+          <div class="actions">
+            <button id="export-btn" class="btn btn-success">导出 PNG</button>
+            <button id="clear-btn" class="btn btn-secondary">清除图片</button>
+          </div>
+          <p id="slot-info" class="slot-info"></p>
+        </section>
+      </aside>
+
+      <!-- 主画布区域 -->
+      <section class="canvas-area">
+        <div class="canvas-wrapper">
+          <canvas id="puzzle-canvas"></canvas>
+        </div>
+        <p class="canvas-tip">鼠标悬停查看槽位，拖拽移动图片，滚轮缩放</p>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>纯前端实现，无需上传图片，保护隐私</p>
+    </footer>
+  </div>
+
+  <script src="js/templates.js"></script>
+  <script src="js/canvas-utils.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
