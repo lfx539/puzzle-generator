@@ -231,6 +231,20 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  cursor: grab;
+  user-select: none;
+}
+
+.image-item:active {
+  cursor: grabbing;
+}
+
+.image-item.dragging {
+  opacity: 0.5;
+}
+
+.image-item.drag-over {
+  border: 2px dashed var(--primary);
 }
 
 .image-item img {

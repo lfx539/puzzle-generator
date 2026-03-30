@@ -212,7 +212,7 @@
 
     let html = '<div class="image-list">';
     state.images.forEach((imgData, index) => {
-      html += `<div class="image-item" data-index="${index}">
+      html += `<div class="image-item" draggable="true" data-index="${index}">
         <img src="${imgData.img.src}" alt="图片 ${index + 1}">
         <button class="remove-btn" data-index="${index}">&times;</button>
         <span class="image-index">${index + 1}</span>
@@ -230,6 +230,68 @@
         removeImage(index);
       });
     });
+
+    // 绑定拖拽事件
+    bindImageDragEvents();
+  }
+
+  // 图片拖拽排序
+  let dragSrcIndex = null;
+
+  function bindImageDragEvents() {
+    const items = document.querySelectorAll('.image-item');
+    items.forEach(item => {
+      item.addEventListener('dragstart', handleImageDragStart);
+      item.addEventListener('dragover', handleImageDragOver);
+      item.addEventListener('drop', handleImageDrop);
+      item.addEventListener('dragend', handleImageDragEnd);
+    });
+  }
+
+  function handleImageDragStart(e) {
+    const item = e.target.closest('.image-item');
+    if (!item) return;
+    dragSrcIndex = parseInt(item.dataset.index);
+    item.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function handleImageDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.target.closest('.image-item');
+    if (target) {
+      // 清除所有高亮，只高亮当前目标
+      document.querySelectorAll('.image-item').forEach(item => item.classList.remove('drag-over'));
+      target.classList.add('drag-over');
+    }
+  }
+
+  function handleImageDrop(e) {
+    e.preventDefault();
+    const target = e.target.closest('.image-item');
+    if (!target) return;
+
+    const dragDestIndex = parseInt(target.dataset.index);
+
+    if (dragSrcIndex !== null && dragDestIndex !== null && dragSrcIndex !== dragDestIndex) {
+      // 简单交换两个位置
+      const temp = state.images[dragSrcIndex];
+      state.images[dragSrcIndex] = state.images[dragDestIndex];
+      state.images[dragDestIndex] = temp;
+
+      // 重新渲染
+      renderPuzzleCanvas();
+      renderImagePreview();
+    }
+  }
+
+  function handleImageDragEnd(e) {
+    e.target.classList.remove('dragging');
+    document.querySelectorAll('.image-item').forEach(item => {
+      item.classList.remove('drag-over');
+    });
+    dragSrcIndex = null;
   }
 
   function removeImage(index) {
